@@ -4,7 +4,6 @@
 #include <cstdlib>
 #include "gc_details.h"
 #include "gc_iterator.h"
-#include <type_traits>
 
 /*
     Pointer implements a pointer type that uses
@@ -55,11 +54,7 @@ public:
     // T *operator=(T *t);
 
 // Overload assignment of pointer to Pointer.
-    typename std::enable_if_t<!std::is_same<T, Pointer<T,size>>::value, T*>
-    operator=(T *t){
-        removePointer(addr);
-        return addPointer(t, size);
-    }
+    T* operator=(T *t);
 
     // Overload assignment of Pointer to Pointer.
     Pointer &operator=(const Pointer &rv);
@@ -145,7 +140,36 @@ Pointer<T,size>::Pointer(const Pointer &ob){
 // Overload assignment of Pointer to Pointer.
 template <class T, int size>
 Pointer<T, size> &Pointer<T, size>::operator=(const Pointer &rv){
-    return *(operator=(&rv));
+    operator=(rv.addr);
+    return *this;
+}
+
+template <class T, int size>
+T* Pointer<T, size>::operator=(T *t){
+    removePointer(addr);
+    return addPointer(t, size);
+}
+
+template <class T, int size>
+T* Pointer<T, size>::addPointer(T* ptr, int length){
+    auto iter = findPtrInfo(ptr);
+    if(iter!=refContainer.end()){
+        iter->refcount++;
+    }
+    else{
+        refContainer.emplace_back(ptr, size);
+    }
+    addr = ptr;
+    return this->addr;
+}
+
+template <class T, int size>
+void Pointer<T, size>::removePointer(T* ptr){
+    auto iter = findPtrInfo(addr);
+    if(iter!=refContainer.end()){
+        iter->refcount--;
+    }
+    collect();
 }
 
 // Collect garbage. Returns true if at least
@@ -169,28 +193,6 @@ bool Pointer<T, size>::collect(){
         }
     }
     return success;
-}
-
-template <class T, int size>
-void Pointer<T, size>::removePointer(T* ptr){
-    auto iter = findPtrInfo(addr);
-    if(iter!=refContainer.end()){
-        iter->refcount--;
-    }
-    collect();
-}
-
-template <class T, int size>
-T* Pointer<T, size>::addPointer(T* ptr, int length){
-    auto iter = findPtrInfo(ptr);
-    if(iter!=refContainer.end()){
-        iter->refcount++;
-    }
-    else{
-        refContainer.emplace_back(ptr, size);
-    }
-    addr = ptr;
-    return this->addr;
 }
 
 // A utility function that displays refContainer.
